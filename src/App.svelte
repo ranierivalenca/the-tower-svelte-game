@@ -1,235 +1,183 @@
 <script>;
-	import MovingObjectFactory from './lib/MovingObjectFactory';
+import TimedFunction from './lib/TimedFunction';
+import { ParticleFactory } from './lib/ParticleFactory';
+import { BULLET_DAMAGE_UP, BULLET_DISPERSION, BULLET_RADIUS_UP, BULLET_RATE_UP, BULLET_SPEED, CX, CY, ENEMY_COUNT_UP, ENEMY_HP_UP, ENEMY_RADIUS, ENEMY_RATE_UP, ENEMY_SPEED_UP, ENEMY_START_DIST, FPS, H, PLAYER_RADIUS, W } from './constants';
+import Bullet from './lib/Bullet';
+import Enemy from './lib/Enemy';
 
-  import TimedFunction from './lib/TimedFunction';
-  import EnemyFactory from './lib/EnemyFactory';
-  import BulletFactory from './lib/BulletFactory';
-  import ParticleFactory from './lib/ParticleFactory';
+// Array.prototype.random = function() {
+// 	return this[Math.random() * this.length | 0] ?? null
+// }
 
-	// const W = 800;
-	// const H = 600;
-	// const CX = W / 2;
-	// const CY = H / 2;
-	// const PLAYER_RADIUS = 10;
-	// const ENEMY_RADIUS = 5;
-	// const BULLET_RADIUS = 1.5;
+const initialBulletRate = 1;
+const initialBulletDamage = 10;
+const initialBulletRadius = 149;
 
-  import {W, H, CX, CY, PLAYER_RADIUS, ENEMY_RADIUS, BULLET_RADIUS} from './constants';
+let bulletRateLevel = 0;
+let bulletDamageLevel = 0;
+let bulletRadiusLevel = 0;
 
-  const BULLET_SPEED = -4;
-  const BULLET_DISPERSION = 1.5;
+$: bulletRate = () => initialBulletRate * (1 + BULLET_RATE_UP) ** bulletRateLevel;
+$: bulletDamage = () => initialBulletDamage * (1 + BULLET_DAMAGE_UP) ** bulletDamageLevel;
+$: bulletRadius = () => initialBulletRadius + (1 + BULLET_RADIUS_UP) ** bulletRadiusLevel;
 
-  const ENEMY_START_DIST = 250;
-	const FPS = 60;
+const bulletRateUp = () => bulletRateLevel++;
+const bulletDamageUp = () => bulletDamageLevel++;
+const bulletRadiusUp = () => bulletRadiusLevel++;
 
-  // balacing constants
+let player = {
+  x: CX,
+  y: CY,
+  hp: 50,
+  gold: 0
+}
 
-  const ENEMY_HP_UP = 0.05;
-  const ENEMY_SPEED_UP = 0.004;
-  const ENEMY_RATE_UP = 0.005;
-  const ENEMY_COUNT_UP = 0.01;
-
-  const BULLET_RATE_UP = 0.05;
-  const BULLET_DAMAGE_UP = 0.1;
-  const BULLET_RADIUS_UP = 0.1;
-
-	// Array.prototype.random = function() {
-	// 	return this[Math.random() * this.length | 0] ?? null
-	// }
-
-	/* ******** */
-
-	let EnemyMovingObject = new MovingObjectFactory()
-		.setCenter(CX, CY)
-		.setRadius(ENEMY_RADIUS)
-		.get();
-
-  const Enemy = EnemyFactory(EnemyMovingObject, PLAYER_RADIUS);
-
-
-	let BulletMovingObject = new MovingObjectFactory()
-		.setCenter(CX, CY)
-		.setRadius(BULLET_RADIUS)
-		.get();
-
-	const Bullet = BulletFactory(BulletMovingObject);
-
-	/* ******** */
-
-	const initialBulletRate = 1;
-	const initialBulletDamage = 10;
-	const initialBulletRadius = 149;
-
-  let bulletRateLevel = 0;
-  let bulletDamageLevel = 0;
-  let bulletRadiusLevel = 0;
-
-  $: bulletRate = () => initialBulletRate * (1 + BULLET_RATE_UP) ** bulletRateLevel;
-  $: bulletDamage = () => initialBulletDamage * (1 + BULLET_DAMAGE_UP) ** bulletDamageLevel;
-  $: bulletRadius = () => initialBulletRadius + (1 + BULLET_RADIUS_UP) ** bulletRadiusLevel;
-
-  const bulletRateUp = () => bulletRateLevel++;
-  const bulletDamageUp = () => bulletDamageLevel++;
-  const bulletRadiusUp = () => bulletRadiusLevel++;
-
-	let player = {
-		x: CX,
-		y: CY,
-		hp: 50,
-    gold: 0
-	}
-
-	let enemies = [];
-	let bullets = [];
-  let particles = [];
+let enemies = [];
+let bullets = [];
+let particles = [];
 
 
 
-	/* ******** */
+/* ******** */
 
-	let wave = 0;
+let wave = 0;
 
-	$: enemyCount = 10 * (1 + ENEMY_COUNT_UP) ** wave | 0;
-	$: enemyRate = (1 + ENEMY_RATE_UP) ** wave
-	$: enemyHp = 10 * (1 + ENEMY_HP_UP) ** wave;
-  $: enemySpeed = 0.5 * (1 + ENEMY_SPEED_UP) ** wave;
-  // $: enemyGold = 20;
+$: enemyCount = 10 * (1 + ENEMY_COUNT_UP) ** wave | 0;
+$: enemyRate = (1 + ENEMY_RATE_UP) ** wave
+$: enemyHp = 10 * (1 + ENEMY_HP_UP) ** wave;
+$: enemySpeed = 0.5 * (1 + ENEMY_SPEED_UP) ** wave;
+// $: enemyGold = 20;
 
-  let waveStatus = {}
+let waveStatus = {}
 
 
 
 
-  const EventManager = {
-    functions: {},
-    fire(evt, params) {
-      for (let fn of this.functions[evt] ?? []) {
-        fn(params);
-      }
-    },
-
-    listen(evt, callback) {
-      if (!this.functions[evt]) {
-        this.functions[evt] = [];
-      }
-      this.functions[evt].push(callback);
+const EventManager = {
+  functions: {},
+  fire(evt, params) {
+    for (let fn of this.functions[evt] ?? []) {
+      fn(params);
     }
+  },
+
+  listen(evt, callback) {
+    if (!this.functions[evt]) {
+      this.functions[evt] = [];
+    }
+    this.functions[evt].push(callback);
   }
+}
 
-  EventManager.listen('wave.started', (wave) => {
-    console.log(`wave ${wave} started`);
-    waveStatus[wave] = 0;
-    // console.log(Object.entries(waveStatus));
+EventManager.listen('wave.started', (wave) => {
+  console.log(`wave ${wave} started`);
+  waveStatus[wave] = 0;
+  // console.log(Object.entries(waveStatus));
+});
+
+EventManager.listen('enemy.created', (e) => {
+  waveStatus[e.wave]++;
+  // console.log(e);
+});
+
+EventManager.listen('enemy.destroyed', (e) => {
+  waveStatus[e.wave]--;
+  // console.log('destroyed', e);
+  const Particle = ParticleFactory.Particle(e.x(), e.y(), e.radius / 2);
+
+  const newParticles = Array(5).fill(0).map(_ => {
+    const angle = Math.random() * 360 | 0;
+    return new Particle(angle, 0, e.speed - BULLET_SPEED, 15);
   });
+  particles = [...particles, ...newParticles];
 
-  EventManager.listen('enemy.created', (e) => {
-    waveStatus[e.wave]++;
-    // console.log(e);
-  });
+  player.gold += e.wave;
+});
 
-  EventManager.listen('enemy.destroyed', (e) => {
-    waveStatus[e.wave]--;
-    // console.log('destroyed', e);
-    const Particle = ParticleFactory(
-      new MovingObjectFactory()
-      .setCenter(e.x(), e.y())
-      .setRadius(e.radius / 2)
-      .get()
-    );
-
-    const newParticles = Array(5).fill(0).map(_ => {
-      const angle = Math.random() * 360 | 0;
-      return new Particle(angle, 0, e.speed - BULLET_SPEED, 15);
-    });
-    particles = [...particles, ...newParticles];
-
-    player.gold += e.wave;
-  });
-
-  EventManager.listen('wave.finished', (wave) => {
-    console.log(`wave ${wave} finished`);
-  });
+EventManager.listen('wave.finished', (wave) => {
+  console.log(`wave ${wave} finished`);
+});
 
 
 
 
-  // main loop
-  new TimedFunction(() => {
-    enemies.forEach(e => e.tick());
-    bullets.forEach(b => b.tick());
-    particles.forEach(p => p.tick());
+// main loop
+new TimedFunction(() => {
+  enemies.forEach(e => e.tick());
+  bullets.forEach(b => b.tick());
+  particles.forEach(p => p.tick());
 
-    bullets.map(bullet => {
-			let target = enemies.find(e => e.collide(bullet))
-			if (target) {
-				target.damagedBy(bullet.damage);
-        bullet.hit();
-			}
-		})
-
-    enemies.map(e => {
-			if (e.alive()) {
-				return;
-			}
-      EventManager.fire('enemy.destroyed', e);
-		});
-
-    bullets = bullets.filter(b => b.alive());
-    enemies = enemies.filter(e => e.alive());
-    particles = particles.filter(p => p.alive());
-
-  }, 1000 / FPS).start(true);
-
-
-
-  // shoot loop
-  const inRange = enemy => enemy.dist - ENEMY_RADIUS < bulletRadius();
-
-  const shoot = new TimedFunction(() => {
-    let targets = enemies.filter(enemy => inRange(enemy));
-    targets.sort((a, b) => a.dist - b.dist);
-    if (targets.length) {
-      let target = targets[Math.random() * targets.length | 0];
-      let angle = target.angle + (Math.random() - 0.5) * 2 * BULLET_DISPERSION;
-      bullets = [...bullets, new Bullet(angle, 0, BULLET_SPEED, bulletDamage())];
+  bullets.map(bullet => {
+    let target = enemies.find(e => e.collide(bullet))
+    if (target) {
+      target.damagedBy(bullet.damage);
+      bullet.hit();
     }
-  }, 1000).start();
+  })
 
-  $: ((shootRate) => {
-    shoot.setInterval(shootRate);
-  })(1000 / bulletRate());
+  enemies.map(e => {
+    if (e.alive()) {
+      return;
+    }
+    EventManager.fire('enemy.destroyed', e);
+  });
+
+  bullets = bullets.filter(b => b.alive());
+  enemies = enemies.filter(e => e.alive());
+  particles = particles.filter(p => p.alive());
+
+}, 1000 / FPS).start(true);
 
 
 
-  // wave
-	const nextWave = () => {
-    EventManager.fire('wave.started', wave);
-    ((count, rate, hp, speed, wave) => {
-      const fn = new TimedFunction(() => {
-        // console.log(count, rate, hp);
-        const angle = Math.random() * 360 | 0;
-        const enemy = new Enemy(
-          angle,
-          ENEMY_START_DIST,
-          speed + (Math.random() - 0.5) * speed,
-          hp,
-          wave
-        );
-        EventManager.fire('enemy.created', enemy);
-        enemies = [
-          ...enemies,
-          enemy
-        ];
-      }, 1000 / rate);
+// shoot loop
+const inRange = enemy => enemy.dist - ENEMY_RADIUS < bulletRadius();
 
-      // console.log(fn);
-      fn.start(true, count, () => {
-        EventManager.fire('wave.finished', wave);
-      });
-    })(enemyCount, enemyRate, enemyHp, enemySpeed, wave);
+const shoot = new TimedFunction(() => {
+  let targets = enemies.filter(enemy => inRange(enemy));
+  targets.sort((a, b) => a.dist - b.dist);
+  if (targets.length) {
+    let target = targets[Math.random() * targets.length | 0];
+    let angle = target.angle + (Math.random() - 0.5) * 2 * BULLET_DISPERSION;
+    bullets = [...bullets, new Bullet(angle, 0, BULLET_SPEED, bulletDamage())];
+  }
+}, 1000).start();
 
-		wave++;
-	}
+$: ((shootRate) => {
+  shoot.setInterval(shootRate);
+})(1000 / bulletRate());
+
+
+
+// wave
+const nextWave = () => {
+  EventManager.fire('wave.started', wave);
+  ((count, rate, hp, speed, wave) => {
+    const fn = new TimedFunction(() => {
+      // console.log(count, rate, hp);
+      const angle = Math.random() * 360 | 0;
+      const enemy = new Enemy(
+        angle,
+        ENEMY_START_DIST,
+        speed + (Math.random() - 0.5) * speed,
+        hp,
+        wave
+      );
+      EventManager.fire('enemy.created', enemy);
+      enemies = [
+        ...enemies,
+        enemy
+      ];
+    }, 1000 / rate);
+
+    // console.log(fn);
+    fn.start(true, count, () => {
+      EventManager.fire('wave.finished', wave);
+    });
+  })(enemyCount, enemyRate, enemyHp, enemySpeed, wave);
+
+  wave++;
+}
 
 // 	let enemyHp = 20
 

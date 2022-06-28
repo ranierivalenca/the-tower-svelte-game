@@ -1,7 +1,10 @@
-import HSLA from './HSLA';
+import { ENEMY_RADIUS, PLAYER_RADIUS } from "../constants";
+import HSLA from "./HSLA";
+import MovingObjectFactory from "./MovingObjectFactory";
 
-let EnemyFactory = (MovingObjectKlass, PLAYER_RADIUS) => {
-  return class Enemy extends MovingObjectKlass {
+const EnemyMovingObject = MovingObjectFactory.MovingObject(ENEMY_RADIUS);
+
+export default class Enemy extends EnemyMovingObject {
     constructor(angle, dist, speed, hp, wave) {
       super(angle, dist, speed);
       this.hp = hp;
@@ -27,6 +30,3 @@ let EnemyFactory = (MovingObjectKlass, PLAYER_RADIUS) => {
       }
     }
   }
-}
-
-  export default EnemyFactory;

@@ -1,21 +1,31 @@
-let ParticleFactory = (MovingObjectKlass) => {
-  return class Particle extends MovingObjectKlass {
-		constructor(angle, dist, speed, ttl) {
-			super(angle, dist, speed);
-			this.ttl = ttl;
-      this.initialTTL = ttl;
-		}
+import MovingObjectFactory from "./MovingObjectFactory";
 
-		alive() {
-			return this.ttl > 0;
-		}
+export class ParticleFactory {
 
-		tick() {
-			this.move();
-      this.ttl--;
-      this.opacity = (this.ttl / this.initialTTL);
-		}
-	}
+  static Particle(cx, cy, radius) {
+    const ParticleMovingObject = MovingObjectFactory.MovingObject(
+      radius,
+      {
+        cx, cy
+      }
+    );
+
+    return class Particle extends ParticleMovingObject {
+      constructor(angle, dist, speed, ttl) {
+        super(angle, dist, speed);
+        this.ttl = ttl;
+        this.initialTTL = ttl;
+      }
+
+      alive() {
+        return this.ttl > 0;
+      }
+
+      tick() {
+        this.move();
+        this.ttl--;
+        this.opacity = (this.ttl / this.initialTTL);
+      }
+    }
+  }
 }
-
-export default ParticleFactory;
