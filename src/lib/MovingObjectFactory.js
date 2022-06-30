@@ -1,4 +1,4 @@
-import { CX, CY } from '../constants';
+import { CX, CY, FPS } from '../constants';
 import AngledObject from './AngledObject'
 
 export default class MovingObjectFactory {
@@ -28,7 +28,7 @@ export default class MovingObjectFactory {
 
       move() {
         // this.dist -= this.speed / fps;
-        this.dist -= this.speed;
+        this.dist -= this.speed / FPS;
       }
 
       getColor() {

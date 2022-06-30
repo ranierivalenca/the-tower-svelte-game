@@ -4,6 +4,9 @@ import { ParticleFactory } from './lib/ParticleFactory';
 import { BULLET_DAMAGE_UP, BULLET_DISPERSION, BULLET_RADIUS_UP, BULLET_RATE_UP, BULLET_SPEED, CX, CY, ENEMY_COUNT_UP, ENEMY_HP_UP, ENEMY_RADIUS, ENEMY_RATE_UP, ENEMY_SPEED_UP, ENEMY_START_DIST, FPS, H, PLAYER_RADIUS, W } from './constants';
 import Bullet from './lib/Bullet';
 import Enemy from './lib/Enemy';
+import EventManager from './lib/EventManager';
+import { WaveController } from './lib/WaveController';
+import { EnemiesManager } from './lib/EnemiesManager';
 
 // Array.prototype.random = function() {
 // 	return this[Math.random() * this.length | 0] ?? null
@@ -53,22 +56,6 @@ let waveStatus = {}
 
 
 
-const EventManager = {
-  functions: {},
-  fire(evt, params) {
-    for (let fn of this.functions[evt] ?? []) {
-      fn(params);
-    }
-  },
-
-  listen(evt, callback) {
-    if (!this.functions[evt]) {
-      this.functions[evt] = [];
-    }
-    this.functions[evt].push(callback);
-  }
-}
-
 EventManager.listen('wave.started', (wave) => {
   console.log(`wave ${wave} started`);
   waveStatus[wave] = 0;
@@ -80,18 +67,18 @@ EventManager.listen('enemy.created', (e) => {
   // console.log(e);
 });
 
-EventManager.listen('enemy.destroyed', (e) => {
-  waveStatus[e.wave]--;
+EventManager.listen('enemy.destroyed', ([enemy, who]) => {
+  waveStatus[enemy.wave]--;
   // console.log('destroyed', e);
-  const Particle = ParticleFactory.Particle(e.x(), e.y(), e.radius / 2);
+  const Particle = ParticleFactory.Particle(enemy.x(), enemy.y(), enemy.radius / 2);
 
   const newParticles = Array(5).fill(0).map(_ => {
     const angle = Math.random() * 360 | 0;
-    return new Particle(angle, 0, e.speed - BULLET_SPEED, 15);
+    return new Particle(angle, 0, enemy.speed - BULLET_SPEED, 15);
   });
   particles = [...particles, ...newParticles];
 
-  player.gold += e.wave;
+  player.gold += enemy.wave;
 });
 
 EventManager.listen('wave.finished', (wave) => {
@@ -103,27 +90,29 @@ EventManager.listen('wave.finished', (wave) => {
 
 // main loop
 new TimedFunction(() => {
-  enemies.forEach(e => e.tick());
+  // EnemiesManager.enemies.forEach(e => e.tick());
+  EnemiesManager.tick();
   bullets.forEach(b => b.tick());
   particles.forEach(p => p.tick());
 
   bullets.map(bullet => {
     let target = enemies.find(e => e.collide(bullet))
     if (target) {
-      target.damagedBy(bullet.damage);
+      target.damagedBy(bullet.damage, bullet);
       bullet.hit();
     }
   })
 
-  enemies.map(e => {
-    if (e.alive()) {
-      return;
-    }
-    EventManager.fire('enemy.destroyed', e);
-  });
+  // enemies.map(e => {
+  //   if (e.alive()) {
+  //     return;
+  //   }
+  //   EventManager.fire('enemy.destroyed', e);
+  // });
+  EnemiesManager.computeAlive();
 
   bullets = bullets.filter(b => b.alive());
-  enemies = enemies.filter(e => e.alive());
+  enemies = EnemiesManager.enemies;
   particles = particles.filter(p => p.alive());
 
 }, 1000 / FPS).start(true);
@@ -151,31 +140,32 @@ $: ((shootRate) => {
 
 // wave
 const nextWave = () => {
-  EventManager.fire('wave.started', wave);
-  ((count, rate, hp, speed, wave) => {
-    const fn = new TimedFunction(() => {
-      // console.log(count, rate, hp);
-      const angle = Math.random() * 360 | 0;
-      const enemy = new Enemy(
-        angle,
-        ENEMY_START_DIST,
-        speed + (Math.random() - 0.5) * speed,
-        hp,
-        wave
-      );
-      EventManager.fire('enemy.created', enemy);
-      enemies = [
-        ...enemies,
-        enemy
-      ];
-    }, 1000 / rate);
+  // EventManager.fire('wave.started', wave);
+  // ((count, rate, hp, speed, wave) => {
+  //   const fn = new TimedFunction(() => {
+  //     // console.log(count, rate, hp);
+  //     const angle = Math.random() * 360 | 0;
+  //     const enemy = new Enemy(
+  //       angle,
+  //       ENEMY_START_DIST,
+  //       speed + (Math.random() - 0.5) * speed,
+  //       hp,
+  //       wave
+  //     );
+  //     EventManager.fire('enemy.created', enemy);
+  //     enemies = [
+  //       ...enemies,
+  //       enemy
+  //     ];
+  //   }, 1000 / rate);
 
-    // console.log(fn);
-    fn.start(true, count, () => {
-      EventManager.fire('wave.finished', wave);
-    });
-  })(enemyCount, enemyRate, enemyHp, enemySpeed, wave);
+  //   // console.log(fn);
+  //   fn.start(true, count, () => {
+  //     EventManager.fire('wave.finished', wave);
+  //   });
+  // })(enemyCount, enemyRate, enemyHp, enemySpeed, wave);
 
+  console.log(EnemiesManager.createWave(wave));
   wave++;
 }
 
